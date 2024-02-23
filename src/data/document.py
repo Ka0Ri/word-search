@@ -3,11 +3,15 @@ from typing import Dict, Union, List
 from pandas import DataFrame
 import pandas as pd
 from konlpy.tag import Okt
+import collections
 okt = Okt()
 
 def tokenizer(doc):
     return [word for (word, particle) in okt.pos(doc, stem=True) 
                         if particle in ['Verb', 'Adjective']]
+
+def CountFrequency(arr):
+    return collections.Counter(arr)
 
 class Document(BaseModel):
     metadata: Dict[str, Union[str, List[str]]]=None
@@ -69,3 +73,21 @@ class ListOfDocuments(BaseModel):
             df.to_excel(writer, sheet_name=word, index=False)
 
         writer.close()
+
+    def get_most_freq_words(self, n: int):
+        word_list = []
+        for doc in self.documents:
+            tokenized = doc.paragraphs['tokenized'].to_list()
+            flat_list = [
+                        x
+                        for xs in tokenized
+                        for x in xs
+                    ]
+            word_list += flat_list
+        
+        freq = CountFrequency(word_list)
+        word_freq = pd.DataFrame(freq, index=['count']).T
+        return word_freq.head(n)
+
+    def get_search_results(self, key):
+        return self.search_results[key]

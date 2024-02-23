@@ -3,6 +3,7 @@ import yaml
 from data.document import ListOfDocuments, Document
 import os
 import json
+import pandas as pd
 
 LISTOFDOCUMENTS = None
 
@@ -19,7 +20,11 @@ def load_files(files):
     global LISTOFDOCUMENTS 
     LISTOFDOCUMENTS = ListOfDocuments(documents)
 
-    return files
+    most_common_words = LISTOFDOCUMENTS.get_most_freq_words(20)
+    most_common_words = most_common_words.reset_index()
+    most_common_words.columns = ['word', 'count']
+
+    return files, most_common_words
 
 def clear_files(files):
     global LISTOFDOCUMENTS
@@ -31,7 +36,7 @@ def save():
     LISTOFDOCUMENTS.save_search_results(config['save_path'])
     gr.Warning(f"Save files in {config['save_path']} successfully.")
    
-def search(wordlist, files):
+def search(wordlist):
 
     # documents = []
     # for path in gr.Progress().tqdm(files, desc="Loading files"):
@@ -40,32 +45,44 @@ def search(wordlist, files):
     #         documents.append(Document(data))
 
     global LISTOFDOCUMENTS
-    return LISTOFDOCUMENTS.search(wordlist)[wordlist[0]]
-
+    search_results = LISTOFDOCUMENTS.search(wordlist)
+    
+    # Report the search results
+    text_results = ""
+    for word in search_results:
+        text_results += f"{word}: {search_results[word].shape[0]} texts,\n"
+    # concat the results into a dataframe with only 5 rows
+    search_results = pd.concat([search_results[word].head(5) for word in search_results], axis=0)
+   
+    return search_results, gr.update(choices=wordlist, value=None), text_results
 
 
 with gr.Blocks() as demo:
+    demo.title = "Search documents"
+    gr.Markdown("# Searching documents using word list")
+    
     with gr.Row():
-        with gr.Column():
-            drop_files = gr.File(label="Upload files", file_types=[".json"], file_count='multiple')
+        drop_files = gr.File(label="Upload files", file_types=[".json"], file_count='multiple')
         with gr.Column():
             with gr.Row():
                 drop_choices = gr.Dropdown(config['wordlist'], label="Word list", multiselect=True, allow_custom_value=True)
             with gr.Row():
-                with gr.Column():
-                    btn_search = gr.Button("Search")
-                with gr.Column():
-                    btn_save = gr.Button("Save")
+                btn_search = gr.Button("Search")
+                btn_save = gr.Button("Save")
+            text_results = gr.Label(label="Search results")
 
     with gr.Row():
+        with gr.Column():
+            plot = gr.BarPlot(label="Most common words", interactive=True, x="word", y="count")
+        with gr.Column():
+            drop_results = gr.Dropdown(label="Search results", choices=[], interactive=True, allow_custom_value=True)
+            df = gr.Dataframe(label="Dataframe")
         
-        df = gr.Dataframe(label="Search results")
-        plot = gr.Plot(label="Plot")
-        
-    drop_files.upload(load_files, inputs=[drop_files], outputs=[drop_files])
+    drop_files.upload(load_files, inputs=[drop_files], outputs=[drop_files, plot])
     drop_files.clear(clear_files, inputs=[drop_files], outputs=[drop_files])
-    btn_search.click(search, inputs=[drop_choices, drop_files], outputs=[df])
+    btn_search.click(search, inputs=[drop_choices], outputs=[df, drop_results, text_results])
     btn_save.click(save, inputs=[], outputs=[])
+    drop_results.select(lambda x: LISTOFDOCUMENTS.get_search_results(x), inputs=[drop_results], outputs=[df])
 
 
 if __name__ == "__main__":
