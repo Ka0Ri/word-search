@@ -33,8 +33,17 @@ def clear_files(files):
 
 def save():
     global LISTOFDOCUMENTS
-    LISTOFDOCUMENTS.save_search_results(config['save_path'])
-    gr.Warning(f"Save files in {config['save_path']} successfully.")
+    # Incremental path
+    # get the last number of the .xlsx file
+    xls_files = [f for f in os.listdir(config['save_path']) if f.endswith(".xlsx")]
+    if len(xls_files) > 0:
+        last_file = sorted(xls_files, reverse=True)[0]
+        last_number = int(last_file.split(".")[0].split("-")[-1])
+    else:
+        last_number = 0
+    file_path = os.path.join(config['save_path'], f"test-{last_number+1}.xlsx")
+    LISTOFDOCUMENTS.save_search_results(file_path)
+    gr.Warning(f"Save files {file_path} successfully.")
    
 def search(wordlist):
 
@@ -70,13 +79,12 @@ with gr.Blocks() as demo:
                 btn_search = gr.Button("Search")
                 btn_save = gr.Button("Save")
             text_results = gr.Label(label="Search results")
-
-    with gr.Row():
-        with gr.Column():
-            plot = gr.BarPlot(label="Most common words", interactive=True, x="word", y="count")
-        with gr.Column():
-            drop_results = gr.Dropdown(label="Search results", choices=[], interactive=True, allow_custom_value=True)
-            df = gr.Dataframe(label="Dataframe")
+    
+            with gr.Column():
+                plot = gr.BarPlot(label="Most common words", interactive=True, x="word", y="count")
+            with gr.Column():
+                drop_results = gr.Dropdown(label="Search results", choices=[], interactive=True, allow_custom_value=True)
+                df = gr.Dataframe(label="Dataframe")
         
     drop_files.upload(load_files, inputs=[drop_files], outputs=[drop_files, plot])
     drop_files.clear(clear_files, inputs=[drop_files], outputs=[drop_files])
