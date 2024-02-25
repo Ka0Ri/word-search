@@ -2,13 +2,26 @@ from pydantic import BaseModel
 from typing import Dict, Union, List
 from pandas import DataFrame
 import pandas as pd
-from konlpy.tag import Okt
+from konlpy.tag import Okt, Kkma
 import collections
-okt = Okt()
 
-def tokenizer(doc):
-    return [word for (word, particle) in okt.pos(doc, stem=True) 
-                        if particle in ['Verb', 'Adjective']]
+okt = Okt()
+kkma = Kkma()
+
+def okt_tokenizer(doc):
+    return list(set([word for (word, particle) in okt.pos(doc, stem=True) 
+                        if particle in ['Verb', 'Adjective', 'Noun']]))
+
+def kkma_tokenizer(doc):
+    result = []
+    try:
+        result = list(set([word for (word, particle) in kkma.pos(doc)
+                        if particle in ['VV', 'VA', 'NNG']]))
+    except UnicodeEncodeError:
+        result = []
+    finally:
+        return result
+
 
 def CountFrequency(arr):
     return collections.Counter(arr)
@@ -24,7 +37,7 @@ class Document(BaseModel):
         super().__init__()
         self.metadata = json['metadata']
         self.paragraphs = DataFrame(json['document'][0]['paragraph'])
-        self.paragraphs['tokenized'] = self.paragraphs['form'].apply(tokenizer)
+        self.paragraphs['tokenized'] = self.paragraphs['form'].apply(okt_tokenizer)
 
     def search(self, words: List[str]) -> List[str]:
         
@@ -50,6 +63,7 @@ class ListOfDocuments(BaseModel):
 
     def search(self, words: List[str]):
         
+        words = [okt.morphs(word)[0] for word in words]
         search_results = {}
         for doc in self.documents:
             word_dict = doc.search(words)
